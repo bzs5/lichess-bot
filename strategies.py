@@ -89,12 +89,6 @@ class RandomMove(ExampleEngine):
         return PlayResult(random.choice(list(board.legal_moves)), None)
 
 
-class Alphabetical(ExampleEngine):
-    def search(self, board, *args):
-        moves = list(board.legal_moves)
-        moves.sort(key=board.san)
-        return PlayResult(moves[0], None)
-
 
 class FirstMove(ExampleEngine):
     """Gets the first move when sorted by uci representation"""
