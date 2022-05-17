@@ -2,11 +2,12 @@
 Some example strategies for people who want to create a custom, homemade bot.
 And some handy classes to extend
 """
-
+import math
 import chess
 from chess.engine import PlayResult
 import random
 from engine_wrapper import EngineWrapper
+from time import time
 
 
 class FillerEngine:
@@ -176,6 +177,7 @@ kingtableend = [
 # Function that uses the above tables, accounting for color and endgame
 
 
+
 def positionalValue(square, piece, color, endgame):
     square = square if color else 63 - square
     if piece == chess.PAWN:
@@ -191,11 +193,14 @@ def positionalValue(square, piece, color, endgame):
     if piece == chess.KING:
         return kingtableend[square] if endgame else kingtable[square]
 
+
+
+
 class CS4701Bot(MinimalEngine):
     def __init__(self, commands, options, stderr, draw_or_resign, name=None, **popen_args):
         print('Init started')
         super().__init__(commands, options, stderr, draw_or_resign, name, **popen_args)
-        self._maxdepth = 4
+        self._maxdepth = 10
         self._board = None
         print('Initialized')
 
@@ -316,31 +321,60 @@ class CS4701Bot(MinimalEngine):
 
         return sorted(movelist, key=heuristic, reverse=True)
 
-    def search(self, board, *args):
-        best_eval = 0
-        best_move = chess.Move.null()
+    def search(self, board, time_limit, ponder, draw_offered):
+       
+        
+        
+        # try:
+        #     print(str(time_limit))
+        # except:
+        #     pass
+        EXPECTED_MOVES = 32.5
+        start_time = time()
+        best_eval = [0] * (self._maxdepth + 1)
+        depth_time = [0] * (self._maxdepth + 1)
+        best_move = [chess.Move.null()] * (self._maxdepth + 1)
         self._board = board
 
         # Standard alpha-beta search
-        def ab_search(d, md, alpha, beta):
+        def ab_search(d, md, alpha, beta, time_lim):
             nonlocal best_move
             nonlocal best_eval
+            nonlocal start_time
+            nonlocal depth_time
             if d == md:
                 return quiescence_search(alpha, beta)
             moves = self.gen_moves()
             if len(moves) == 0:
                 return self.scoreEnd(d)
+
+            # start the search with the previous best move
+            """
+            if d == 0 and not(md == 0):
+                moves.remove(best_move[md-1])
+                moves.insert(0, best_move[md-1])
+            """
+
             for mv in moves:
+                # if taking more than 30 seconds, return current best move 
+                #print("difference in time is " + str(time() - start_time))
+
+                # Time control area
+            
+                if time() - start_time >= time_lim:
+                    print('inside best moves chocie thing')
+                    print('bestmove: ', best_move[md])
+                    break
                 self._board.push(mv)
-                val = -ab_search(d+1, md, - beta, -alpha)
+                val = -ab_search(d+1, md, - beta, -alpha, time_lim)
                 self._board.pop()
                 if val >= beta:
                     return beta
                 if val > alpha:
                     alpha = val
                     if d == 0:
-                        best_move = mv
-                        best_eval = val
+                        best_move[md] = mv
+                        best_eval[md] = val
             return alpha
 
         # Quiesence search: check captures until we reach a quiet position
@@ -359,6 +393,52 @@ class CS4701Bot(MinimalEngine):
                 if val > alpha:
                     alpha = val
             return alpha
-        ab_search(0, self._maxdepth, NEG_MAX, POS_MAX)
+
+
+        def get_c_time_left():
+            if self._board.turn and time_limit.white_clock:
+                # print("White")
+                return time_limit.white_clock
+            elif time_limit.black_clock:
+                # print("Black")
+                # print('time limit blackm c;lockl: ', time_limit.black_clock)
+                return time_limit.black_clock
+            
+        base_time_left = get_c_time_left()
+
+        if base_time_left <= 5:
+            ab_search(0, 2, NEG_MAX, POS_MAX, 100000)
+            return PlayResult(best_move[2], None)
+        else:
+            # print('time limit: ', time_limit)
+            for d in range(self._maxdepth + 1):
+                print("WE ARE NOW ON DEPTH " + str(d))
+                # decide based on new branching factor and time taken from previous iteration if its worth it
+                print()
+                print("the engine had " + str(base_time_left / EXPECTED_MOVES) + " to make a move. It has ")
+                if ((base_time_left / EXPECTED_MOVES) - base_time_left + get_c_time_left()) < (depth_time[d-1] * math.sqrt(len(list(self._board.legal_moves)))):
+                    print("Not worth it to go the further depth. Returning move from depth " + str(d-1))
+                    return PlayResult(best_move[d-1], None)
+
+                timer_for_depth = time()
+                print("Starting the timer for max depth " + str(d))
+                ab_search(0, d, NEG_MAX, POS_MAX, (base_time_left / EXPECTED_MOVES))
+                depth_time[d] = time() - timer_for_depth
+                print("max depth " + str(d) + " took time " + str(depth_time[d]))
+                if time() - start_time >= (base_time_left / EXPECTED_MOVES):
+                    print("broke out of the search, returning the best move from depth " + str(d-1))
+                    for i in range(d):
+                        print("The best move at depth " + str(d+1) + " is " + str(best_move[i]))
+                    return PlayResult(best_move[d-1], None)
+            print("FINISHED THE LOOP")
+
         print(best_eval)
-        return PlayResult(best_move, None)
+        return PlayResult(best_move[self._maxdepth], None)
+
+
+        
+        
+      
+
+
+
