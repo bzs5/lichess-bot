@@ -329,7 +329,7 @@ class CS4701Bot(MinimalEngine):
         #     print(str(time_limit))
         # except:
         #     pass
-        EXPECTED_MOVES = 32.5
+        EXPECTED_MOVES = 25
         start_time = time()
         best_eval = [0] * (self._maxdepth + 1)
         depth_time = [0] * (self._maxdepth + 1)
@@ -349,12 +349,6 @@ class CS4701Bot(MinimalEngine):
                 return self.scoreEnd(d)
 
             # start the search with the previous best move
-            """
-            if d == 0 and not(md == 0):
-                moves.remove(best_move[md-1])
-                moves.insert(0, best_move[md-1])
-            """
-
             for mv in moves:
                 # if taking more than 30 seconds, return current best move 
                 #print("difference in time is " + str(time() - start_time))
@@ -362,8 +356,6 @@ class CS4701Bot(MinimalEngine):
                 # Time control area
             
                 if time() - start_time >= time_lim:
-                    print('inside best moves chocie thing')
-                    print('bestmove: ', best_move[md])
                     break
                 self._board.push(mv)
                 val = -ab_search(d+1, md, - beta, -alpha, time_lim)
@@ -412,27 +404,19 @@ class CS4701Bot(MinimalEngine):
         else:
             # print('time limit: ', time_limit)
             for d in range(self._maxdepth + 1):
-                print("WE ARE NOW ON DEPTH " + str(d))
+                print("Depth " + str(d))
                 # decide based on new branching factor and time taken from previous iteration if its worth it
-                print()
-                print("the engine had " + str(base_time_left / EXPECTED_MOVES) + " to make a move. It has ")
                 if ((base_time_left / EXPECTED_MOVES) - base_time_left + get_c_time_left()) < (depth_time[d-1] * math.sqrt(len(list(self._board.legal_moves)))):
-                    print("Not worth it to go the further depth. Returning move from depth " + str(d-1))
+                    print("Aborting search due to lack of time. Returning move from depth " + str(d-1))
                     return PlayResult(best_move[d-1], None)
 
                 timer_for_depth = time()
-                print("Starting the timer for max depth " + str(d))
                 ab_search(0, d, NEG_MAX, POS_MAX, (base_time_left / EXPECTED_MOVES))
+                print("Best Move at depth " + str(d) + ": " + str(best_move[d]))
                 depth_time[d] = time() - timer_for_depth
-                print("max depth " + str(d) + " took time " + str(depth_time[d]))
                 if time() - start_time >= (base_time_left / EXPECTED_MOVES):
-                    print("broke out of the search, returning the best move from depth " + str(d-1))
-                    for i in range(d):
-                        print("The best move at depth " + str(d+1) + " is " + str(best_move[i]))
+                    print("Broke out of the search, returning the best move from depth " + str(d-1))
                     return PlayResult(best_move[d-1], None)
-            print("FINISHED THE LOOP")
-
-        print(best_eval)
         return PlayResult(best_move[self._maxdepth], None)
 
 
